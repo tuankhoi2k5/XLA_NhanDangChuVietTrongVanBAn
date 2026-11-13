@@ -1,0 +1,663 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Camera iPhone - Handwritten OCR</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 20px;
+    background: #101827;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    max-width: 500px;
+    margin: auto;
+}
+
+h2 {
+    text-align: center;
+    color: #60a5fa;
+}
+
+.camera-box {
+    background: #1e293b;
+    padding: 12px;
+    border-radius: 15px;
+}
+
+video {
+    width: 100%;
+    display: block;
+    background: black;
+    border-radius: 10px;
+    aspect-ratio: 4/3;
+    object-fit: contain;
+}
+
+button, .file-label {
+    width: 100%;
+    padding: 15px;
+    margin-top: 12px;
+    border: 0;
+    border-radius: 9px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    text-align: center;
+}
+
+.start {
+    background: #2563eb;
+    color: white;
+}
+
+.capture {
+    background: #16a34a;
+    color: white;
+}
+
+.upload {
+    background: #f59e0b;
+    color: #111827;
+}
+
+.stop {
+    background: #475569;
+    color: white;
+}
+
+.file-label {
+    display: block;
+    background: #334155;
+    color: white;
+}
+
+input[type=file] {
+    display: none;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#preview {
+    width: 100%;
+    margin-top: 15px;
+    border-radius: 10px;
+    display: none;
+    object-fit: contain;
+}
+
+#status {
+    text-align: center;
+    padding: 12px;
+    line-height: 1.5;
+    color: #93c5fd;
+    overflow-wrap: anywhere;
+}
+</style>
+</head>
+
+<!-- LẤY TOKEN TỪ FLASK -->
+<body data-token="{{ token }}">
+
+<div class="container">
+
+    <h2>HANDWRITTEN OCR</h2>
+
+    <p style="text-align:center">
+        Kết nối camera iPhone với máy tính
+    </p>
+
+    <div class="camera-box">
+
+        <!-- CAMERA -->
+        <video
+            id="video"
+            autoplay
+            playsinline
+            muted>
+        </video>
+
+        <!-- NÚT MỞ CAMERA -->
+        <button
+            class="start"
+            id="startCamera"
+            type="button">
+            MỞ CAMERA IPHONE
+        </button>
+
+        <!-- NÚT CHỤP ẢNH -->
+        <button
+            class="capture"
+            id="capture"
+            type="button">
+            CHỤP ẢNH
+        </button>
+
+        <!-- NÚT TẮT CAMERA -->
+        <button
+            class="stop"
+            id="stopCamera"
+            type="button">
+            TẮT CAMERA
+        </button>
+
+        <!-- ẢNH XEM TRƯỚC -->
+        <img
+            id="preview"
+            alt="Ảnh đã chọn">
+
+        <!-- CHỌN ẢNH -->
+        <label
+            class="file-label"
+            for="imageInput">
+            CHỌN ẢNH TỪ THƯ VIỆN
+        </label>
+
+        <input
+            type="file"
+            id="imageInput"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif">
+
+        <!-- GỬI ẢNH -->
+        <button
+            class="upload"
+            id="uploadBtn"
+            type="button"
+            disabled>
+            GỬI ẢNH VỀ LAPTOP
+        </button>
+
+    </div>
+
+    <!-- TRẠNG THÁI -->
+    <p id="status">
+        Sẵn sàng kết nối camera.
+    </p>
+
+</div>
+
+<script>
+(() => {
+
+    "use strict";
+
+    // =====================================
+    // 1. LẤY TOKEN KẾT NỐI
+    // =====================================
+
+    const mobileToken = document.body.dataset.token;
+
+    // =====================================
+    // 2. LẤY CÁC PHẦN TỬ HTML
+    // =====================================
+
+    const video = document.getElementById("video");
+
+    const preview = document.getElementById("preview");
+
+    const input = document.getElementById("imageInput");
+
+    const statusText = document.getElementById("status");
+
+    const uploadBtn = document.getElementById("uploadBtn");
+
+    const startBtn = document.getElementById("startCamera");
+
+    const captureBtn = document.getElementById("capture");
+
+    const stopBtn = document.getElementById("stopCamera");
+
+    // =====================================
+    // 3. BIẾN TOÀN CỤC TRONG PHẠM VI MODULE
+    // =====================================
+
+    let stream = null;
+
+    let selectedBlob = null;
+
+    let previewUrl = null;
+
+    let isUploading = false;
+
+    // =====================================
+    // 4. HIỂN THỊ TRẠNG THÁI
+    // =====================================
+
+    function updateStatus(message) {
+        statusText.textContent = message;
+    }
+
+    // =====================================
+    // 5. HIỂN THỊ ẢNH XEM TRƯỚC
+    // =====================================
+
+    function showPreview(blob) {
+
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+        }
+
+        previewUrl = URL.createObjectURL(blob);
+
+        preview.src = previewUrl;
+
+        preview.style.display = "block";
+    }
+
+    // =====================================
+    // 6. MỞ CAMERA IPHONE
+    // =====================================
+
+    async function startCamera() {
+
+        try {
+
+            stopCamera();
+
+            if (!navigator.mediaDevices ||
+                !navigator.mediaDevices.getUserMedia) {
+
+                throw new Error(
+                    "Trình duyệt cần HTTPS để sử dụng camera."
+                );
+            }
+
+            updateStatus("Đang khởi động camera...");
+
+            stream = await navigator.mediaDevices.getUserMedia({
+
+                audio: false,
+
+                video: {
+                    facingMode: {
+                        ideal: "environment"
+                    },
+
+                    width: {
+                        ideal: 1280
+                    },
+
+                    height: {
+                        ideal: 720
+                    }
+                }
+
+            });
+
+            video.srcObject = stream;
+
+            await video.play();
+
+            updateStatus(
+                "Camera đã bật. Hãy hướng camera vào văn bản."
+            );
+
+        } catch (error) {
+
+            console.error("CAMERA ERROR:", error);
+
+            updateStatus(
+                "Không mở được camera: " + error.message
+            );
+
+        }
+    }
+
+    // =====================================
+    // 7. TẮT CAMERA
+    // =====================================
+
+    function stopCamera() {
+
+        if (stream) {
+
+            stream.getTracks().forEach(track => {
+                track.stop();
+            });
+
+            stream = null;
+        }
+
+        video.pause();
+
+        video.srcObject = null;
+    }
+
+    // =====================================
+    // 8. CHỤP ẢNH
+    // =====================================
+
+    function captureImage() {
+
+        if (!stream || !video.videoWidth) {
+
+            updateStatus(
+                "Vui lòng mở camera trước khi chụp."
+            );
+
+            return;
+        }
+
+        const canvas = document.createElement("canvas");
+
+        canvas.width = video.videoWidth;
+
+        canvas.height = video.videoHeight;
+
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+
+            updateStatus(
+                "Không thể xử lý hình ảnh."
+            );
+
+            return;
+        }
+
+        context.drawImage(
+            video,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
+
+        canvas.toBlob(blob => {
+
+            if (!blob) {
+
+                updateStatus(
+                    "Không thể tạo ảnh."
+                );
+
+                return;
+            }
+
+            selectedBlob = blob;
+
+            showPreview(blob);
+
+            uploadBtn.disabled = false;
+
+            updateStatus(
+                "Đã chụp ảnh thành công. Có thể gửi về laptop."
+            );
+
+        }, "image/jpeg", 0.9);
+    }
+
+    // =====================================
+    // 9. CHỌN ẢNH TỪ THƯ VIỆN
+    // =====================================
+
+    input.addEventListener("change", () => {
+
+        const file = input.files[0];
+
+        if (!file) return;
+
+        if (!file.type.startsWith("image/")) {
+
+            updateStatus(
+                "Tệp được chọn không phải hình ảnh."
+            );
+
+            return;
+        }
+
+        if (file.size > 12 * 1024 * 1024) {
+
+            updateStatus(
+                "Ảnh vượt quá giới hạn 12 MB."
+            );
+
+            input.value = "";
+
+            return;
+        }
+
+        selectedBlob = file;
+
+        showPreview(file);
+
+        uploadBtn.disabled = false;
+
+        updateStatus(
+            "Đã chọn ảnh: " +
+            file.type +
+            " - " +
+            (file.size / 1024 / 1024).toFixed(2) +
+            " MB"
+        );
+
+    });
+
+    // =====================================
+    // 10. GỬI ẢNH VỀ FLASK
+    // =====================================
+
+    async function uploadImage() {
+
+        if (isUploading) return;
+
+        if (!selectedBlob) {
+
+            updateStatus(
+                "Chưa có ảnh để gửi."
+            );
+
+            return;
+        }
+
+        if (!mobileToken) {
+
+            updateStatus(
+                "Không tìm thấy mã kết nối. Hãy tạo lại mã QR."
+            );
+
+            return;
+        }
+
+        if (selectedBlob.size > 12 * 1024 * 1024) {
+
+            updateStatus(
+                "Ảnh vượt quá giới hạn 12 MB."
+            );
+
+            return;
+        }
+
+        isUploading = true;
+
+        uploadBtn.disabled = true;
+
+        updateStatus(
+            "Đang gửi ảnh về laptop..."
+        );
+
+        try {
+
+            const formData = new FormData();
+
+            const mime = selectedBlob.type.toLowerCase();
+
+            const extensions = {
+
+                "image/jpeg": "jpg",
+
+                "image/png": "png",
+
+                "image/webp": "webp",
+
+                "image/heic": "heic",
+
+                "image/heif": "heif"
+
+            };
+
+            const extension = extensions[mime];
+
+            if (!extension) {
+
+                throw new Error(
+                    "Định dạng chưa hỗ trợ: " +
+                    (mime || "không xác định")
+                );
+            }
+
+            formData.append(
+                "image",
+                selectedBlob,
+                "iphone." + extension
+            );
+
+            const uploadUrl =
+                window.location.origin +
+                "/api/mobile-upload/" +
+                encodeURIComponent(mobileToken);
+
+            const response = await fetch(uploadUrl, {
+
+                method: "POST",
+
+                body: formData
+
+            });
+
+            // Đọc phản hồi từ Flask
+            const responseText = await response.text();
+
+            let result;
+
+            try {
+
+                result = JSON.parse(responseText);
+
+            } catch (error) {
+
+                throw new Error(
+                    "Máy chủ trả dữ liệu không hợp lệ. HTTP " +
+                    response.status
+                );
+            }
+
+            if (!response.ok || !result.success) {
+
+                throw new Error(
+                    result.error ||
+                    "Gửi ảnh thất bại. HTTP " +
+                    response.status
+                );
+            }
+
+            updateStatus(
+                "Gửi ảnh thành công! Laptop đang nhận ảnh."
+            );
+
+        } catch (error) {
+
+            console.error(
+                "UPLOAD ERROR:",
+                error
+            );
+
+            updateStatus(
+                "Lỗi gửi ảnh: " + error.message
+            );
+
+            uploadBtn.disabled = false;
+
+        } finally {
+
+            isUploading = false;
+
+        }
+    }
+
+    // =====================================
+    // 11. GẮN SỰ KIỆN
+    // =====================================
+
+    startBtn.addEventListener(
+        "click",
+        startCamera
+    );
+
+    stopBtn.addEventListener(
+        "click",
+        () => {
+
+            stopCamera();
+
+            updateStatus(
+                "Camera đã được tắt."
+            );
+
+        }
+    );
+
+    captureBtn.addEventListener(
+        "click",
+        captureImage
+    );
+
+    uploadBtn.addEventListener(
+        "click",
+        uploadImage
+    );
+
+    // =====================================
+    // 12. DỌN DẸP KHI RỜI TRANG
+    // =====================================
+
+    window.addEventListener("pagehide", () => {
+
+        stopCamera();
+
+        if (previewUrl) {
+
+            URL.revokeObjectURL(previewUrl);
+
+            previewUrl = null;
+        }
+
+    });
+
+    // =====================================
+    // 13. KIỂM TRA TOKEN
+    // =====================================
+
+    if (!mobileToken) {
+
+        updateStatus(
+            "Thiếu mã kết nối. Vui lòng quét lại mã QR."
+        );
+
+    } else {
+
+        updateStatus(
+            "Đã kết nối mã QR. Sẵn sàng sử dụng camera iPhone."
+        );
+
+    }
+
+})();
+</script>
+
+</body>
+</html>

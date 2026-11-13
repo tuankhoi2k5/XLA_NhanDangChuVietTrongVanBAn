@@ -1,0 +1,530 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Handwritten OCR System</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<header class="topbar">
+    <div class="brand">
+        <span class="brand-icon">OCR</span>
+        <div>
+            <b>Handwritten OCR</b>
+            <small>IMAGE PROCESSING SYSTEM</small>
+        </div>
+    </div>
+
+    <span class="status">
+        <i></i> Hệ thống nhận dạng văn bản
+    </span>
+</header>
+
+<main class="container">
+
+    <!-- GIỚI THIỆU -->
+    <section class="intro">
+        <div>
+            <p class="eyebrow">
+                ĐỒ ÁN / BÀI TẬP LỚN MÔN XỬ LÝ ẢNH
+            </p>
+
+            <h1>
+                Nhận dạng chữ viết<br>
+                <em>trong hình ảnh</em>
+            </h1>
+
+            <p class="muted">
+                Chụp hoặc tải ảnh tài liệu, nhận dạng nội dung,
+                kiểm tra từng vùng chữ, tìm kiếm và thống kê kết quả OCR.
+            </p>
+        </div>
+
+        <div class="intro-mark">文</div>
+    </section>
+
+    <section class="workspace">
+
+        <!-- 01. NGUỒN HÌNH ẢNH -->
+        <div class="panel">
+
+            <div class="panel-heading">
+                <div>
+                    <span class="step">01</span>
+                    <h2>Nguồn hình ảnh</h2>
+                </div>
+
+                <span class="tag">CAMERA / UPLOAD</span>
+            </div>
+
+            <div class="camera-wrap">
+
+                <video id="video"
+                       autoplay
+                       playsinline
+                       muted></video>
+
+                <div id="cameraPlaceholder" class="placeholder">
+                    <div class="camera-symbol">◎</div>
+                    <b>Chưa bật camera</b>
+                    <small>Bật camera hoặc tải ảnh từ thiết bị</small>
+                </div>
+
+            </div>
+
+            <div class="button-row">
+                <button class="btn primary" id="startCamera">
+                    Mở camera
+                </button>
+
+                <button class="btn" id="capture">
+                    Chụp ảnh
+                </button>
+
+                <button class="btn light" id="stopCamera">
+                    Tắt camera
+                </button>
+            </div>
+
+            <div class="upload-row">
+
+                <label class="btn outline" for="fileInput">
+                    ＋ Chọn ảnh từ thiết bị
+                </label>
+
+                <input type="file"
+                       id="fileInput"
+                       accept="image/*">
+
+                <select id="cameraFacing"
+                        aria-label="Chọn camera">
+
+                    <option value="environment">
+                        Camera sau / mặc định
+                    </option>
+
+                    <option value="user">
+                        Camera trước
+                    </option>
+
+                </select>
+
+            </div>
+
+            <p class="hint">
+                Hỗ trợ JPG, PNG, BMP, WEBP. Nên chụp đủ sáng,
+                giữ giấy phẳng và tránh rung.
+            </p>
+
+            <!-- KẾT NỐI IPHONE BẰNG QR -->
+            <div class="qr-connect">
+
+                <div class="qr-heading">
+                    <h3>📱 Kết nối camera iPhone</h3>
+
+                    <p>
+                        Quét mã QR bằng điện thoại để chụp và gửi ảnh
+                        về máy tính.
+                    </p>
+                </div>
+
+                <button class="btn outline" id="createQR">
+                    Tạo mã QR kết nối
+                </button>
+
+                <div id="qrArea"
+                     class="qr-area"
+                     style="display:none;">
+
+                    <img id="qrImage"
+                         alt="Mã QR kết nối iPhone">
+
+                    <p id="qrStatus">
+                        Đang chờ iPhone quét mã QR...
+                    </p>
+
+                    <a id="mobileLink"
+                       href="#"
+                       target="_blank">
+                        Mở camera trên điện thoại
+                    </a>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- 02. XỬ LÝ HÌNH ẢNH -->
+        <div class="panel">
+
+            <div class="panel-heading">
+                <div>
+                    <span class="step">02</span>
+                    <h2>Xử lý hình ảnh</h2>
+                </div>
+
+                <span class="tag">IMAGE PROCESSING</span>
+            </div>
+
+            <div class="preview-wrap">
+
+                <canvas id="resultCanvas"></canvas>
+
+                <div id="previewPlaceholder"
+                     class="placeholder">
+
+                    <div class="camera-symbol">▧</div>
+
+                    <b>Chưa có hình ảnh</b>
+
+                    <small>
+                        Ảnh được chọn sẽ hiển thị tại đây
+                    </small>
+
+                </div>
+
+            </div>
+
+            <div class="preview-actions">
+
+                <button class="btn outline"
+                        id="zoomImage"
+                        disabled>
+                    ⛶ Xem ảnh kích thước lớn
+                </button>
+
+                <span id="previewInfo">Chưa có ảnh</span>
+
+            </div>
+
+            <div class="button-row">
+
+                <button class="btn primary" id="recognize">
+                    ✦ Bắt đầu nhận dạng
+                </button>
+
+            </div>
+
+            <!-- TRẠNG THÁI XỬ LÝ -->
+            <div id="loading" style="display:none;">
+                Đang xử lý hình ảnh...
+            </div>
+
+
+            <!-- =================================
+                 MÈO THÁM TỬ OCR
+            ================================== -->
+
+            <div id="ocrMascot" class="ocr-mascot">
+
+                <div class="mascot-image">
+
+                    <img
+                        id="ocrMascotImage"
+                        src="{{ url_for(
+                            'static',
+                            filename='images/cat-detective-search.gif'
+                        ) }}"
+                        alt="Mèo thám tử OCR"
+                    >
+
+                </div>
+
+                <div class="mascot-content">
+
+                    <h3 id="ocrMascotTitle">
+                        Mèo thám tử đang chờ nhiệm vụ
+                    </h3>
+
+                    <p id="ocrMascotText">
+                        Hãy tải ảnh lên để bắt đầu tìm kiếm chữ viết!
+                    </p>
+
+                    <div class="mascot-progress">
+                        <span></span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- 03. KẾT QUẢ NHẬN DẠNG -->
+    <section class="panel result-panel">
+
+        <div class="panel-heading">
+            <div>
+                <span class="step">03</span>
+                <h2>Kết quả nhận dạng</h2>
+            </div>
+
+            <span class="tag">OCR RESULT</span>
+        </div>
+
+        <div class="result-content">
+
+            <textarea
+                id="recognizedText"
+                placeholder="Nội dung nhận dạng sẽ hiển thị tại đây..."
+                rows="8"></textarea>
+
+        </div>
+
+        <div class="button-row">
+
+            <button class="btn outline" id="copyText">
+                Sao chép văn bản
+            </button>
+
+            <button class="btn outline" id="downloadTxt">
+                Tải TXT
+            </button>
+
+            <button class="btn outline" id="downloadJson">
+                Tải JSON
+            </button>
+
+        </div>
+
+    </section>
+
+
+    <!-- 04. THỐNG KÊ -->
+    <section class="panel">
+
+        <div class="panel-heading">
+            <div>
+                <span class="step">04</span>
+                <h2>Thống kê kết quả</h2>
+            </div>
+
+            <span class="tag">STATISTICS</span>
+        </div>
+
+        <div class="statistics">
+
+            <div class="stat-item">
+                <span>Số vùng chữ</span>
+                <strong id="regionCount">0</strong>
+            </div>
+
+            <div class="stat-item">
+                <span>Số ký tự</span>
+                <strong id="characterCount">0</strong>
+            </div>
+
+            <div class="stat-item">
+                <span>Số từ</span>
+                <strong id="wordCount">0</strong>
+            </div>
+
+            <div class="stat-item">
+                <span>Thời gian xử lý</span>
+                <strong id="processingTime">0s</strong>
+            </div>
+
+            <div class="stat-item">
+                <span>Tổng vùng nhận dạng</span>
+                <strong id="totalCount">0</strong>
+            </div>
+
+            <div class="stat-item">
+                <span>Vùng được chọn</span>
+                <strong id="selectedCount">0</strong>
+            </div>
+
+            <div class="stat-item">
+                <span>Kết quả tìm kiếm</span>
+                <strong id="matchCount">0</strong>
+            </div>
+
+            <div class="stat-item">
+                <span>Độ tin cậy trung bình</span>
+                <strong id="avgConfidence">—</strong>
+            </div>
+
+        </div>
+
+
+        <!-- BẢNG CHI TIẾT -->
+        <div class="table-heading">
+
+            <div>
+                <h3>Chi tiết các vùng nhận dạng</h3>
+
+                <p>
+                    Tick vào từng vùng để hiển thị hoặc ẩn khung trên ảnh.
+                </p>
+            </div>
+
+            <div class="selection-actions">
+
+                <button class="text-btn" id="selectAll">
+                    Chọn tất cả
+                </button>
+
+                <button class="text-btn" id="deselectAll">
+                    Bỏ chọn
+                </button>
+
+            </div>
+
+        </div>
+
+        <div class="table-container">
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>Chọn</th>
+                        <th>ID</th>
+                        <th>Nội dung</th>
+                        <th>X</th>
+                        <th>Y</th>
+                        <th>Rộng</th>
+                        <th>Cao</th>
+                        <th>Độ tin cậy</th>
+                    </tr>
+                </thead>
+
+                <tbody id="detectionRows">
+
+                    <tr>
+                        <td colspan="8" class="empty-cell">
+                            Chưa có dữ liệu nhận dạng.
+                        </td>
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+
+    <!-- 05. TÌM KIẾM TỪ KHÓA -->
+    <section class="panel">
+
+        <div class="panel-heading">
+            <div>
+                <span class="step">05</span>
+                <h2>Tìm kiếm từ khóa</h2>
+            </div>
+
+            <span class="tag">SEARCH</span>
+        </div>
+
+        <div class="search-row">
+
+            <input
+                type="text"
+                id="keyword"
+                placeholder="Nhập từ khóa cần tìm..."
+            >
+
+            <button class="btn primary" id="searchKeyword">
+                Tìm kiếm
+            </button>
+
+            <button class="btn light" id="clearSearch">
+                Xóa lọc
+            </button>
+
+        </div>
+
+        <div id="searchResult" class="search-summary">
+            Chưa thực hiện tìm kiếm.
+        </div>
+
+    </section>
+
+</main>
+
+
+<!-- CỬA SỔ XEM ẢNH KÍCH THƯỚC LỚN -->
+<div id="imageModal"
+     class="image-modal"
+     aria-hidden="true">
+
+    <div class="modal-content">
+
+        <div class="modal-header">
+
+            <div>
+                <h2>Xem chi tiết hình ảnh</h2>
+
+                <p>
+                    Kiểm tra các vùng chữ đã được nhận dạng
+                </p>
+            </div>
+
+            <button
+                class="modal-close"
+                id="closeImageModal"
+                aria-label="Đóng">
+                ×
+            </button>
+
+        </div>
+
+        <div class="modal-toolbar">
+
+            <button class="btn outline" id="modalSelectAll">
+                Chọn tất cả
+            </button>
+
+            <button class="btn outline" id="modalDeselectAll">
+                Bỏ chọn
+            </button>
+
+            <span id="modalSelectedInfo">
+                0 vùng được chọn
+            </span>
+
+        </div>
+
+        <div class="modal-image-area">
+            <canvas id="modalCanvas"></canvas>
+        </div>
+
+        <div class="modal-footer">
+
+            <span>
+                Khung xanh: vùng được chọn ·
+                Khung đỏ: vùng khớp từ khóa
+            </span>
+
+            <button class="btn primary" id="closeModalBottom">
+                Đóng
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<div id="toast" class="toast"></div>
+
+
+<!-- JAVASCRIPT -->
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+
+</body>
+</html>
