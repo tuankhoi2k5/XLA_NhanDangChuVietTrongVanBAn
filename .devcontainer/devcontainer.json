@@ -1,0 +1,26 @@
+
+{
+  "name": "Handwritten OCR",
+  "postCreateCommand": "python -m venv ../.venv && ../.venv/bin/pip install -r Handwritten_OCR/requirements.txt",
+  "postStartCommand": "cd Handwritten_OCR && (pgrep -f '[p]ython -u app.py' >/dev/null || nohup ../.venv/bin/python -u app.py > /tmp/handwritten-ocr.log 2>&1 &)",
+  "forwardPorts": [5000],
+  "portsAttributes": {
+    "5000": {
+      "label": "Handwritten OCR",
+      "onForward": "open-browser"
+    }
+  }
+}
+
+{
+  "name": "Handwritten OCR",
+  "postCreateCommand": "cd Handwritten_OCR && pip install -r requirements.txt",
+  "postStartCommand": "cd Handwritten_OCR && (pgrep -f '[p]ython -u app.py' >/dev/null || nohup python -u app.py > /tmp/handwritten-ocr.log 2>&1 &)",
+  "forwardPorts": [5000],
+  "portsAttributes": {
+    "5000": {
+      "label": "Handwritten OCR",
+      "onForward": "open-browser"
+    }
+  }
+}
